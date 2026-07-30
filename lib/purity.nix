@@ -5,7 +5,7 @@
 # proves the claim, and separately proves its own proofs have teeth.
 #
 # Generalised out of a per-repo check group that several registry-shaped modules in this family
-# had each re-derived by hand (nixposix's `posix-purity` group is the surviving original; see
+# had each re-derived by hand (nixiam's `posix-purity` group is the surviving original; see
 # that repo's `checks/default.nix`). A fixture, never a runner: it returns a list of
 # `{ name; ok; detail; }` records and asserts nothing itself, so the caller keeps ownership of
 # how a failure is reported -- the same division `mkEfiDisk` and `mkBrokenDisk` already draw.
