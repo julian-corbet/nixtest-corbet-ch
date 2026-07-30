@@ -101,13 +101,15 @@
 #                            options nobody set cannot change any surface.
 #   extraSurfaces         -- optional extra `{ path; value; decoy; }` records; see above.
 #   factPaths             -- optional list of dotted option paths (e.g. "nixstorage.disks")
-#                            whose evaluated value must be plain serialisable data. Proven by
-#                            JSON round-trip equality, which is stricter than it looks: a
-#                            derivation serialises to its store-path STRING and so fails to
-#                            round-trip back to an attrset, a function makes `toJSON` throw, and
-#                            a path serialises to a string while also dragging the file into the
-#                            store. Only strings, numbers, bools, null, and lists/attrsets of
-#                            those survive -- which is precisely the definition of exportable.
+#                            whose evaluated value must be plain serialisable data. Proven by a
+#                            structural scan, NOT a JSON round-trip -- see "Plain-data facts"
+#                            below for the measured reason a round-trip is unusable here. Only
+#                            strings (without store context), numbers, bools, null, and
+#                            lists/attrsets of those survive the scan -- precisely the definition
+#                            of exportable. Each path also gets a companion check that
+#                            `populatedConfig` actually set it to something (see
+#                            "populated-config-is-not-vacuous" below): a fact left at its empty
+#                            default would pass the plain-data scan trivially, proving nothing.
 { lib
 , nixpkgs
 , system
@@ -221,6 +223,14 @@ let
       [ "${prefix} (a string carrying store context)" ]
     else [ ];
 
+  # A fact path left at its empty/null default is not a violation the scan above can see -- an
+  # empty attrset IS plain data -- but it means `populatedConfig` never actually exercised this
+  # path, so "is-plain-data" passed by having nothing to look at rather than by looking at
+  # something real. Folded in from a check nixiac's own copy of this fixture had grown
+  # independently (`the-populated-fixture-actually-renders-something`), generalised from one
+  # hardcoded path to every entry in `factPaths`.
+  isVacuous = v: v == { } || v == [ ] || v == null || v == "";
+
   factChecks = path:
     let
       v = lib.getAttrFromPath (lib.splitString "." path) cfg-module-alone;
@@ -230,6 +240,10 @@ let
       (check "${label}-purity/${path}-is-plain-data"
         (bad == [ ])
         "`${path}` is not plain data, so this fact cannot be read without dragging a build in behind it: ${lib.concatStringsSep ", " bad}. Facts must be strings (without store context), numbers, bools, null, or lists/attrsets of those.")
+
+      (check "${label}-purity/${path}-populated-config-is-not-vacuous"
+        (!(isVacuous v))
+        "`${path}` is still empty/null/blank even with `populatedConfig` applied -- the plain-data check above for this path passed by having nothing to look at. Pass a `populatedConfig` that actually sets `${path}` to something.")
     ];
 
   # One decoy covers every fact path -- the mechanism is identical for all of them, so a single

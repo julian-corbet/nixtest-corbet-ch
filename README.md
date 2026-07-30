@@ -26,21 +26,25 @@ Three, so far:
 
 - **`lib.mkPurityChecks`** (`lib/purity.nix`) — the odd one out: it tests a
   *caller's own module* rather than assembling a disk. Given a module file
-  that claims to be a pure-data table, it proves the claim four ways — the
+  that claims to be a pure-data table, it proves the claim five ways — the
   module binds no `pkgs` argument (via `builtins.functionArgs`, which a
   module cannot dodge by renaming); composing it alone against a bare stub
   system changes no watched surface (an **eval diff**, so an *indirect*
   write that expands into a unit or a package cannot slip past a text
-  scan); its source never names the guarded option paths; and every fact it
-  publishes is plain data, reported per offending attribute. Declaring
+  scan); its source never names the guarded option paths; every fact it
+  publishes (`factPaths`) is plain data, reported per offending attribute;
+  and every published fact was actually exercised by the caller's own
+  `populatedConfig` rather than left at its empty default. Declaring
   `options` and `config.assertions` is explicitly not a violation — a table
   that validates itself and hands back facts is what "pure data" means.
 
   Each proof ships with a **meta-test**: a decoy module that genuinely
   commits the violation, so every comparison is shown capable of failing
   rather than assumed to work. `checks/purity-fixture-test.nix` runs the
-  whole thing in both directions against two synthetic tables (16
-  assertions, no build).
+  whole thing against two synthetic tables, in three configurations (one
+  more than there are tables, so the "populated config was actually
+  exercised" check gets a run where it must fire on its own): 21
+  assertions, no build.
 
   Why it matters beyond tidiness: a module that is pure data is one whose
   facts can be read — by a tool, a renderer, an audit — without evaluating

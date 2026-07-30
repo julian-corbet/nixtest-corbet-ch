@@ -13,8 +13,13 @@
 # The meta-tests must pass in BOTH runs: they test the mechanism, not the module under test, so a
 # meta-test that fails on the violator would mean the comparison machinery is broken.
 #
+# A THIRD, narrower run proves the `<path>-populated-config-is-not-vacuous` check specifically:
+# VACUOUS  same compliant table, but with `populatedConfig = { }` -- the fact path is then left at
+#          its empty default, and the non-vacuous check must be the one that notices, so that
+#          check has its own meta-test too rather than riding along on the other two runs' coattails.
+#
 # ⚠ COST NOTE. Each mkPurityChecks call performs three full `eval-config.nix` evaluations (bare,
-# module-alone, decoy-alone), and this file makes two calls -- six NixOS evaluations. That is why
+# module-alone, decoy-alone), and this file makes three calls -- nine NixOS evaluations. That is why
 # this is a separate check rather than folded into eval-tests.nix, which is meant to stay
 # instantaneous. It builds nothing and boots nothing.
 { pkgs, lib, nixpkgs, mkPurityChecks, system }:
@@ -64,6 +69,21 @@ let
 
   impureByName = lib.listToAttrs (map (r: lib.nameValuePair r.name r) impureResults);
 
+  # ── VACUOUS: the compliant table again, but with nothing to populate it ────────────────────────
+  # The one property none of the checks above can demonstrate: that `<path>-populated-config-is-not-
+  # vacuous` itself fires when a caller's `populatedConfig` fails to touch the fact path at all. Both
+  # other runs happen to set their fact path to something real, so without this run that check would
+  # be an assumption wearing a proof's clothes -- exactly the failure mode this file exists to rule out.
+  vacuousResults = mkPurityChecks {
+    inherit lib nixpkgs system bareStubs;
+    label = "fixture-vacuous";
+    modulePath = ./fixtures/pure-table.nix;
+    populatedConfig = { };
+    factPaths = [ "purityFixture.entries" ];
+  };
+
+  vacuousByName = lib.listToAttrs (map (r: lib.nameValuePair r.name r) vacuousResults);
+
   # Every violation the decoy table commits, named explicitly. A check that vanishes (renamed,
   # accidentally dropped) fails here as a MISSING name rather than passing by absence -- which is
   # the failure mode a bare `any (r: !r.ok)` would hide.
@@ -85,10 +105,12 @@ let
         else "`${name}` PASSED against checks/fixtures/impure-table.nix, which violates that very property on purpose"))
     expectedToFire;
 
-  # The meta-tests prove the machinery, so they must hold on both sides. On the violator run in
+  # The meta-tests prove the machinery, so they must hold on all three runs. On the violator run in
   # particular: if a meta-test fails there, the comparison itself is broken and every other verdict
   # in this file is worthless.
-  metaTests = lib.filter (r: lib.hasInfix "(meta-test)" r.name) (pureResults ++ impureResults);
+  metaTests = lib.filter (r: lib.hasInfix "(meta-test)" r.name) (pureResults ++ impureResults ++ vacuousResults);
+
+  vacuousCheckName = "fixture-vacuous-purity/purityFixture.entries-populated-config-is-not-vacuous";
 
   results = [
     (check "purity-selftest/compliant-table-passes-every-check"
@@ -96,8 +118,14 @@ let
       "checks/fixtures/pure-table.nix is a genuine pure-data table but mkPurityChecks reported failures: ${lib.concatMapStringsSep "; " (r: "${r.name} -- ${r.detail}") pureFailures}")
 
     (check "purity-selftest/compliant-run-emitted-checks-at-all"
-      (lib.length pureResults >= 8)
-      "expected at least 8 checks from the compliant run (1 pkgs + 2 source scans + 2x2 eval-diff pairs + 1 factPath + its meta-test + the functionArgs meta-test); got ${toString (lib.length pureResults)} -- a silently shrinking check set means coverage was lost, not that the module improved")
+      (lib.length pureResults >= 9)
+      "expected at least 9 checks from the compliant run (1 pkgs + 2 source scans + 2x2 eval-diff pairs + 1 factPath's 2 checks [is-plain-data + is-not-vacuous] + its meta-test + the functionArgs meta-test); got ${toString (lib.length pureResults)} -- a silently shrinking check set means coverage was lost, not that the module improved")
+
+    (check "purity-selftest/empty-populated-config-trips-the-non-vacuous-check"
+      (vacuousByName ? ${vacuousCheckName} && !vacuousByName.${vacuousCheckName}.ok)
+      (if !(vacuousByName ? ${vacuousCheckName})
+      then "no check named `${vacuousCheckName}` was emitted at all -- it was renamed or dropped, so nothing is testing that property any more"
+      else "`${vacuousCheckName}` PASSED even though populatedConfig = { } leaves purityFixture.entries at its empty default -- the non-vacuous check itself is broken"))
   ]
   ++ firedChecks
   ++ map
