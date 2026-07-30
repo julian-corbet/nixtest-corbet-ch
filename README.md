@@ -1,7 +1,7 @@
 # nixtest
 
 Shared NixOS test **fixtures** for this project family — never a runner.
-Two, so far:
+Three, so far:
 
 - **`lib.mkEfiDisk`** (`lib/efi-disk.nix`) — assembles a raw GPT disk with a
   populated EFI System Partition, entirely inside the ordinary Nix build
@@ -23,6 +23,29 @@ Two, so far:
   it cold by `blkid` type alone — the actual "find a disk pulled off a dead
   machine" scenario a rescue or repair-tooling module's own test wants to
   drive.
+
+- **`lib.mkPurityChecks`** (`lib/purity.nix`) — the odd one out: it tests a
+  *caller's own module* rather than assembling a disk. Given a module file
+  that claims to be a pure-data table, it proves the claim four ways — the
+  module binds no `pkgs` argument (via `builtins.functionArgs`, which a
+  module cannot dodge by renaming); composing it alone against a bare stub
+  system changes no watched surface (an **eval diff**, so an *indirect*
+  write that expands into a unit or a package cannot slip past a text
+  scan); its source never names the guarded option paths; and every fact it
+  publishes is plain data, reported per offending attribute. Declaring
+  `options` and `config.assertions` is explicitly not a violation — a table
+  that validates itself and hands back facts is what "pure data" means.
+
+  Each proof ships with a **meta-test**: a decoy module that genuinely
+  commits the violation, so every comparison is shown capable of failing
+  rather than assumed to work. `checks/purity-fixture-test.nix` runs the
+  whole thing in both directions against two synthetic tables (16
+  assertions, no build).
+
+  Why it matters beyond tidiness: a module that is pure data is one whose
+  facts can be read — by a tool, a renderer, an audit — without evaluating
+  a system around them. A fact welded into a `systemd` unit's script can
+  only be recovered by evaluating *and then text-parsing* a derivation.
 
 ## Why this exists
 

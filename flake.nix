@@ -31,6 +31,7 @@
       lib = {
         mkEfiDisk = import ./lib/efi-disk.nix;
         mkBrokenDisk = import ./lib/broken-disk.nix;
+        mkPurityChecks = import ./lib/purity.nix;
       };
 
       checks = forAllSystems (system:
@@ -39,6 +40,7 @@
           inherit lib nixpkgs system;
           mkEfiDisk = self.lib.mkEfiDisk;
           mkBrokenDisk = self.lib.mkBrokenDisk;
+          mkPurityChecks = self.lib.mkPurityChecks;
         });
 
       formatter = forAllSystems (system: (pkgsFor system).nixpkgs-fmt);
