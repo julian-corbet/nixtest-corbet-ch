@@ -17,7 +17,7 @@
 #   1. The NixOS module system has no partial evaluation. Touching `config.<anything>` forces
 #      the entire fixpoint, every module merged. So a consumer that reads ONE fact out of a
 #      module pays for that module's whole evaluation -- and if the module is impure enough to
-#      need a system around it, for the system's evaluation too. Measured on the fleet this
+#      need a system around it, for the system's evaluation too. Measured on the hosts this
 #      family was built for: a full host evaluation is ~95 s; importing a plain-data .nix file
 #      is ~0.021 s. Three orders of magnitude, for the same fact.
 #
